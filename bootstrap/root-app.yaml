@@ -6,11 +6,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOUR-GITHUB-USERNAME/lakehouse.git   # <-- change this
+    repoURL: https://github.com/RawNENF/lakehouse.git   # <-- change this
     targetRevision: main
     path: apps
     directory:
       recurse: true          # picks up every application.yaml under apps/**
+      include: "*/application.yaml"
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
