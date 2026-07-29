@@ -16,18 +16,21 @@ spec:
     enabled: true
     ssl: false        # fine for local sim; wouldn't do this on anything internet-facing
   storage:
-    useAllNodes: false
-    useAllDevices: false
-    nodes:
-      - name: "lakehouse-control-plane"
-        devices:
-          - name: "lakehouse-disk0"
-      - name: "lakehouse-worker"
-        devices:
-          - name: "lakehouse-disk1"
-      - name: "lakehouse-worker2"
-        devices:
-          - name: "lakehouse-disk2"
+    storageClassDeviceSets:
+      - name: osd-set
+        count: 3
+        portable: false
+        volumeClaimTemplates:
+          - metadata:
+              name: data
+            spec:
+              resources:
+                requests:
+                  storage: 10Gi
+              storageClassName: standard
+              volumeMode: Filesystem
+              accessModes:
+                - ReadWriteOnce
   resources:
     mon:
       limits: { cpu: "500m", memory: "512Mi" }
