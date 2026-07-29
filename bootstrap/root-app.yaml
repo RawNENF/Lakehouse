@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR-GITHUB-USERNAME/lakehouse.git   # <-- change this
+    targetRevision: main
+    path: apps
+    directory:
+      recurse: true          # picks up every application.yaml under apps/**
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true             # if you delete a folder from apps/, Argo CD removes it live
+      selfHeal: true           # if someone manually kubectl-edits something, Argo CD reverts it
+    syncOptions:
+      - CreateNamespace=true

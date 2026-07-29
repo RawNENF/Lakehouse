@@ -1,0 +1,43 @@
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: lakehouse-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    image: quay.io/ceph/ceph:v18.2.4   # Reef — pin deliberately
+  dataDirHostPath: /var/lib/rook
+  mon:
+    count: 3          # one mon per node — needs quorum, 3 is the standard minimum
+    allowMultiplePerNode: false
+  mgr:
+    count: 1
+  dashboard:
+    enabled: true
+    ssl: false        # fine for local sim; wouldn't do this on anything internet-facing
+  storage:
+    useAllNodes: false
+    useAllDevices: false
+    nodes:
+      - name: "lakehouse-control-plane"
+        devices:
+          - name: "lakehouse-disk0"
+      - name: "lakehouse-worker"
+        devices:
+          - name: "lakehouse-disk1"
+      - name: "lakehouse-worker2"
+        devices:
+          - name: "lakehouse-disk2"
+  resources:
+    mon:
+      limits: { cpu: "500m", memory: "512Mi" }
+    mgr:
+      limits: { cpu: "500m", memory: "512Mi" }
+    osd:
+      limits: { cpu: "1", memory: "1Gi" }
+  healthCheck:
+    daemonHealth:
+      mon:
+        interval: 45s
+      osd:
+        interval: 60s

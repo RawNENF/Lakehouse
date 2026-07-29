@@ -1,0 +1,44 @@
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStore
+metadata:
+  name: lakehouse-store
+  namespace: rook-ceph
+spec:
+  metadataPool:
+    failureDomain: host
+    replicated:
+      size: 3          # matches our 3 nodes; would be higher on real hardware
+  dataPool:
+    failureDomain: host
+    replicated:
+      size: 3
+  preservePoolsOnDelete: false   # true would be safer for a real prod cluster
+  gateway:
+    port: 80
+    instances: 1
+    resources:
+      limits: { cpu: "500m", memory: "512Mi" }
+---
+# Rook needs this StorageClass to exist before it can provision buckets against the store.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: lakehouse-store-bucket
+provisioner: rook-ceph.ceph.rook.io/bucket
+reclaimPolicy: Delete
+parameters:
+  objectStoreName: lakehouse-store
+  objectStoreNamespace: rook-ceph
+---
+# A bucket, created via Rook's ObjectBucketClaim, that Iceberg will use as its warehouse root.
+# Rook auto-generates a Secret + ConfigMap with the same name as this claim, in the SAME
+# namespace as the claim, containing S3 access key / secret key / bucket name / RGW host+port.
+# iceberg-rest and trino read those directly via envFrom / configMapRef.
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: iceberg-warehouse
+  namespace: lakehouse   # deliberately NOT rook-ceph — see note above
+spec:
+  generateBucketName: iceberg-warehouse
+  storageClassName: lakehouse-store-bucket

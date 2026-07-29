@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-config
+  namespace: lakehouse
+data:
+  # --- catalogs ---
+  iceberg.properties: |
+    connector.name=iceberg
+    iceberg.catalog.type=rest
+    iceberg.rest-catalog.uri=http://iceberg-rest.lakehouse.svc.cluster.local:8181
+    iceberg.file-format=PARQUET
+    fs.native-s3.enabled=true
+    s3.endpoint=http://lakehouse-store.rook-ceph.svc.cluster.local
+    s3.path-style-access=true
+    s3.aws-access-key=${ENV:AWS_ACCESS_KEY_ID}
+    s3.aws-secret-key=${ENV:AWS_SECRET_ACCESS_KEY}
+
+  # --- shared node config ---
+  jvm.config: |
+    -server
+    -Xmx1G
+    -XX:+UseG1GC
+    -XX:G1HeapRegionSize=32M
+    -XX:+ExplicitGCInvokesConcurrent
+    -XX:+ExitOnOutOfMemoryError
+
+  node.properties: |
+    node.environment=lakehouse
+    node.data-dir=/data/trino
+
+  # --- coordinator-specific ---
+  coordinator-config.properties: |
+    coordinator=true
+    node-scheduler.include-coordinator=false
+    http-server.http.port=8080
+    discovery.uri=http://localhost:8080
+
+  # --- worker-specific ---
+  worker-config.properties: |
+    coordinator=false
+    http-server.http.port=8080
+    discovery.uri=http://trino-coordinator.lakehouse.svc.cluster.local:8080

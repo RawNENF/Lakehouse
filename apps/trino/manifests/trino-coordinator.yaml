@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-coordinator
+  namespace: lakehouse
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: trino-coordinator }
+  template:
+    metadata:
+      labels: { app: trino-coordinator, role: trino }
+    spec:
+      containers:
+        - name: trino
+          image: trinodb/trino:465
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef: { name: iceberg-warehouse }   # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+          volumeMounts:
+            - { name: config, mountPath: /etc/trino/jvm.config, subPath: jvm.config }
+            - { name: config, mountPath: /etc/trino/node.properties, subPath: node.properties }
+            - { name: config, mountPath: /etc/trino/config.properties, subPath: coordinator-config.properties }
+            - { name: config, mountPath: /etc/trino/catalog/iceberg.properties, subPath: iceberg.properties }
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits: { cpu: "1", memory: "2Gi" }
+          readinessProbe:
+            httpGet: { path: /v1/info, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap: { name: trino-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino-coordinator
+  namespace: lakehouse
+spec:
+  selector: { app: trino-coordinator }
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
