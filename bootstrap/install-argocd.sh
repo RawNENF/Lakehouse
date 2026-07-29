@@ -7,7 +7,7 @@ set -euo pipefail
 
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply --server-side -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 echo "Waiting for Argo CD server to be ready..."
 kubectl -n argocd rollout status deployment/argocd-server --timeout=300s
