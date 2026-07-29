@@ -11,5 +11,5 @@ for dev in $(losetup -j "$DISK_DIR"/*.img 2>/dev/null | cut -d: -f1); do
 done
 
 echo "Removing $DISK_DIR"
-rm -rf "$DISK_DIR"
+sudo rm -rf "$DISK_DIR"
 echo "Done."
