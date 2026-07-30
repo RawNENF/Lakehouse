@@ -2,13 +2,27 @@ apiVersion: kind.x-k8s.io/v1alpha4
 kind: Cluster
 name: lakehouse
 
-# 1 control-plane + 2 workers = 3 nodes total. No extraMounts / loop devices needed —
-# Ceph OSDs run on PVCs (backed by kind's built-in local-path-provisioner StorageClass),
-# not raw devices. See docs/architecture.md for why we moved away from raw loop devices.
+# 1 control-plane + 2 workers = 3 nodes total.
+# Each node gets one of the VM's real attached disks (/dev/sdb, /dev/sdc, /dev/sdd —
+# added as VHDX disks in Hyper-V) mounted in as a raw block device for a Ceph OSD.
+# We tried loop devices and LVM-on-loop devices first; both hit real, unfixable
+# limitations (Rook rejects loop-type devices outright; the LVM device-mapper
+# control interface isn't reachable inside kind's node containers). Real attached
+# disks sidestep all of that — they're genuine TYPE=disk devices, exactly what
+# Rook's raw-device discovery expects natively. See docs/architecture.md.
 nodes:
   - role: control-plane
+    extraMounts:
+      - hostPath: /dev/sdb
+        containerPath: /dev/lakehouse-disk0
   - role: worker
+    extraMounts:
+      - hostPath: /dev/sdc
+        containerPath: /dev/lakehouse-disk1
   - role: worker
+    extraMounts:
+      - hostPath: /dev/sdd
+        containerPath: /dev/lakehouse-disk2
 
 networking:
   apiServerAddress: "127.0.0.1"

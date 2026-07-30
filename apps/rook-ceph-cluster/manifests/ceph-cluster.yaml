@@ -8,7 +8,11 @@ spec:
     image: quay.io/ceph/ceph:v18.2.4   # Reef — pin deliberately
   dataDirHostPath: /var/lib/rook
   mon:
-    count: 1          # dropped from 3 due to quorum churn under CPU pressure
+    count: 1          # dropped from 3: on constrained hardware, 3-way quorum kept
+                       # churning (mon health-check timeouts under CPU pressure ->
+                       # Rook fails the mon over -> new mon adds more load -> repeat).
+                       # 1 mon has no quorum to lose, so this failure mode goes away
+                       # entirely. Real tradeoff (no HA), acceptable for a solo POC.
     allowMultiplePerNode: false
   mgr:
     count: 1
@@ -16,28 +20,22 @@ spec:
     enabled: true
     ssl: false        # fine for local sim; wouldn't do this on anything internet-facing
   storage:
-    # PVC-based OSDs, backed by local PersistentVolumes wrapping loop devices
-    # (see local-storage.yaml in this folder). We tried raw devices directly
-    # (Rook rejects loop-type devices during discovery) and Filesystem-mode PVCs
-    # via local-path-provisioner (Rook's PVC-based OSD mode requires Block mode,
-    # which local-path-provisioner can't provide) before landing on this —
-    # local PVs in Block mode is the same pattern Rook's own CI uses for testing
-    # OSDs on loop devices.
-    storageClassDeviceSets:
-      - name: osd-set
-        count: 3
-        portable: false
-        volumeClaimTemplates:
-          - metadata:
-              name: data
-            spec:
-              resources:
-                requests:
-                  storage: 10Gi
-              storageClassName: local-storage
-              volumeMode: Block
-              accessModes:
-                - ReadWriteOnce
+    # Raw devices — the simplest possible config, and now viable because these
+    # are real attached disks (TYPE=disk), not loop devices. Rook's auto-discovery
+    # rejects loop-type devices outright regardless of how they're wrapped (we
+    # tried both raw and PVC-based OSD modes); real disks have no such issue.
+    useAllNodes: false
+    useAllDevices: false
+    nodes:
+      - name: "lakehouse-control-plane"
+        devices:
+          - name: "lakehouse-disk0"
+      - name: "lakehouse-worker"
+        devices:
+          - name: "lakehouse-disk1"
+      - name: "lakehouse-worker2"
+        devices:
+          - name: "lakehouse-disk2"
   resources:
     mon:
       limits: { cpu: "500m", memory: "512Mi" }
@@ -55,10 +53,12 @@ spec:
       mon:
         disabled: false
         probe:
-          timeoutSeconds: 30
+          timeoutSeconds: 30    # default 5s was too tight on constrained hardware —
+                                 # the mon daemon itself was healthy, just the probe's
+                                 # own `ceph` CLI call was slow under CPU pressure
     startupProbe:
       mon:
         disabled: false
         probe:
           timeoutSeconds: 30
-          failureThreshold: 10
+          failureThreshold: 10  # give it more attempts before giving up during startup
