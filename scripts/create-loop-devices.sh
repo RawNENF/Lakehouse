@@ -29,10 +29,13 @@ sudo udevadm trigger --subsystem-match=block 2>/dev/null || true
 sudo udevadm settle 2>/dev/null || true
 
 LOOP_DEVICES=()
+LVM_DEVICES=()
 for i in 0 1 2; do
   IMG="$DISK_DIR/disk${i}.img"
   LOOP_NUM="${LOOP_NUMS[$i]}"
   LOOP_DEV="/dev/loop${LOOP_NUM}"
+  VG="lakehouse-vg${i}"
+  LV="lakehouse-lv${i}"
 
   if [ ! -f "$IMG" ]; then
     echo "Creating sparse file $IMG ($DISK_SIZE)..."
@@ -59,17 +62,31 @@ for i in 0 1 2; do
     sudo losetup "$LOOP_DEV" "$IMG"
   fi
   LOOP_DEVICES+=("$LOOP_DEV")
+
+  if ! sudo vgs "$VG" >/dev/null 2>&1; then
+    echo "Creating LVM volume group $VG and logical volume $LV on $LOOP_DEV"
+    sudo pvcreate -f "$LOOP_DEV"
+    sudo vgcreate "$VG" "$LOOP_DEV"
+    sudo lvcreate -l 100%FREE -n "$LV" "$VG"
+  else
+    echo "Volume group $VG already exists, reusing it"
+  fi
+
+  LV_DEV=$(readlink -f "/dev/${VG}/${LV}")
+  echo "Logical volume device: $LV_DEV"
+  LVM_DEVICES+=("$LV_DEV")
 done
 
 echo ""
 echo "Loop devices ready: ${LOOP_DEVICES[*]}"
+echo "LVM devices ready: ${LVM_DEVICES[*]}"
 
-sed -e "s|LOOP0_DEV|${LOOP_DEVICES[0]}|" \
-    -e "s|LOOP1_DEV|${LOOP_DEVICES[1]}|" \
-    -e "s|LOOP2_DEV|${LOOP_DEVICES[2]}|" \
+sed -e "s|LOOP0_DEV|${LVM_DEVICES[0]}|" \
+    -e "s|LOOP1_DEV|${LVM_DEVICES[1]}|" \
+    -e "s|LOOP2_DEV|${LVM_DEVICES[2]}|" \
     "$REPO_ROOT/kind/cluster-config.yaml.tmpl" > "$REPO_ROOT/kind/cluster-config.yaml"
 
-echo "Generated kind/cluster-config.yaml with real loop device paths."
+echo "Generated kind/cluster-config.yaml with LVM device paths (not raw loop devices)."
 echo ""
-echo "IMPORTANT: these loop devices don't survive a host reboot. If you reboot,"
+echo "IMPORTANT: these loop/LVM devices don't survive a host reboot. If you reboot,"
 echo "re-run this script BEFORE re-creating the kind cluster."
