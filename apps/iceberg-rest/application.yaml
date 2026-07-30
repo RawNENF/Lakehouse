@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOUR-GITHUB-USERNAME/lakehouse.git   # <-- change this
+    repoURL: https://github.com/RawNENF/lakehouse.git   # <-- change this
     targetRevision: main
     path: apps/iceberg-rest/manifests
   destination:
