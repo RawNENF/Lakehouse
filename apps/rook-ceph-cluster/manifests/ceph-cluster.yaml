@@ -8,7 +8,7 @@ spec:
     image: quay.io/ceph/ceph:v18.2.4   # Reef — pin deliberately
   dataDirHostPath: /var/lib/rook
   mon:
-    count: 3          # one mon per node — needs quorum, 3 is the standard minimum
+    count: 1          # dropped from 3 due to quorum churn under CPU pressure
     allowMultiplePerNode: false
   mgr:
     count: 1
