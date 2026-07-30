@@ -42,9 +42,10 @@ chmod +x scripts/*.sh bootstrap/*.sh
 ./scripts/create-loop-devices.sh
 ```
 
-This creates 3 sparse files under `/var/lib/lakehouse-disks/`, attaches each as a loop device,
-and regenerates `kind/cluster-config.yaml` from the template with the real `/dev/loopN`
-paths. You'll need `sudo` for `losetup`.
+This creates 3 sparse files under `/var/lib/lakehouse-disks/`, attaches each to a fixed
+loop device (`/dev/loop30/31/32`), and regenerates `kind/cluster-config.yaml` from the
+template. Needs `sudo`. See `docs/architecture.md` for why these are wrapped as local
+PVs rather than given to Rook directly.
 
 ## 3. Create the kind cluster
 
@@ -53,7 +54,17 @@ kind create cluster --config kind/cluster-config.yaml
 kubectl get nodes   # should show 3 nodes: lakehouse-control-plane, lakehouse-worker, lakehouse-worker2
 ```
 
-## 4. Install Argo CD (the only manual kubectl step, ever)
+## 4. Allow workloads on the control-plane node
+
+Kubernetes taints control-plane nodes by default so regular workloads won't schedule
+there. With only 2 worker nodes, Ceph's 3-way mon quorum can't fit — so for this
+single-host simulation, remove that taint:
+
+```bash
+kubectl taint nodes lakehouse-control-plane node-role.kubernetes.io/control-plane:NoSchedule-
+```
+
+## 5. Install Argo CD (the only manual kubectl step, ever)
 
 ```bash
 ./bootstrap/install-argocd.sh
@@ -63,7 +74,7 @@ Follow the printed instructions to port-forward and log into the UI if you want 
 things sync visually (recommended for your first run — seeing Rook/Ceph come up live is
 genuinely useful for understanding what's happening).
 
-## 5. Hand the rest of the cluster over to GitOps
+## 6. Hand the rest of the cluster over to GitOps
 
 ```bash
 kubectl apply -f bootstrap/root-app.yaml

@@ -1,0 +1,41 @@
+name: validate-manifests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: yamllint
+        run: |
+          pip install yamllint
+          yamllint -d "{extends: default, rules: {line-length: disable}}" apps/ bootstrap/ kind/
+
+      - name: Install kubeconform
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate plain Kubernetes manifests
+        run: |
+          # Skip Argo CD Application CRs and Rook CRs here — kubeconform doesn't know
+          # their schemas without extra schema sources. This just catches malformed
+          # core k8s resources (Deployments, Services, ConfigMaps, etc).
+          find apps -path "*/manifests/*.yaml" | xargs kubeconform \
+            -summary \
+            -ignore-missing-schemas \
+            -kubernetes-version 1.29.0
+
+      - name: Validate Argo CD Application manifests
+        run: |
+          find apps bootstrap -name "application.yaml" -o -name "root-app.yaml" | \
+          while read -r f; do
+            echo "Checking $f is valid YAML..."
+            python3 -c "import yaml,sys; yaml.safe_load(open('$f'))"
+          done

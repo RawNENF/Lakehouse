@@ -1,0 +1,31 @@
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: lakehouse
+
+# 1 control-plane + 2 workers = 3 nodes total.
+# LOOP0_DEV / LOOP1_DEV / LOOP2_DEV are substituted by scripts/create-loop-devices.sh
+# with fixed loop device numbers (30/31/32) — see that script for why fixed numbers,
+# not auto-picked ones.
+#
+# These raw devices are NOT registered directly with Rook (that path categorically
+# rejects loop-type devices). Instead they're wrapped as local PersistentVolumes
+# (see apps/rook-ceph-cluster/manifests/local-storage.yaml) which Rook consumes via
+# its PVC-based OSD mode (storageClassDeviceSets). This is the same pattern Rook's
+# own upstream CI uses for testing OSDs on loop devices.
+nodes:
+  - role: control-plane
+    extraMounts:
+      - hostPath: LOOP0_DEV
+        containerPath: /dev/lakehouse-disk0
+  - role: worker
+    extraMounts:
+      - hostPath: LOOP1_DEV
+        containerPath: /dev/lakehouse-disk1
+  - role: worker
+    extraMounts:
+      - hostPath: LOOP2_DEV
+        containerPath: /dev/lakehouse-disk2
+
+networking:
+  apiServerAddress: "127.0.0.1"
+  apiServerPort: 6443

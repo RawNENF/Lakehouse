@@ -1,0 +1,76 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer   # don't bind until a pod needing it is scheduled,
+                                           # so it lands on the node matching this PV's nodeAffinity
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: lakehouse-disk0-pv
+spec:
+  capacity:
+    storage: 10Gi
+  volumeMode: Block
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /dev/lakehouse-disk0
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - lakehouse-control-plane
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: lakehouse-disk1-pv
+spec:
+  capacity:
+    storage: 10Gi
+  volumeMode: Block
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /dev/lakehouse-disk1
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - lakehouse-worker
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: lakehouse-disk2-pv
+spec:
+  capacity:
+    storage: 10Gi
+  volumeMode: Block
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /dev/lakehouse-disk2
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - lakehouse-worker2

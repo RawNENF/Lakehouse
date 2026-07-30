@@ -16,6 +16,13 @@ spec:
     enabled: true
     ssl: false        # fine for local sim; wouldn't do this on anything internet-facing
   storage:
+    # PVC-based OSDs, backed by local PersistentVolumes wrapping loop devices
+    # (see local-storage.yaml in this folder). We tried raw devices directly
+    # (Rook rejects loop-type devices during discovery) and Filesystem-mode PVCs
+    # via local-path-provisioner (Rook's PVC-based OSD mode requires Block mode,
+    # which local-path-provisioner can't provide) before landing on this —
+    # local PVs in Block mode is the same pattern Rook's own CI uses for testing
+    # OSDs on loop devices.
     storageClassDeviceSets:
       - name: osd-set
         count: 3
@@ -27,8 +34,8 @@ spec:
               resources:
                 requests:
                   storage: 10Gi
-              storageClassName: standard
-              volumeMode: Filesystem
+              storageClassName: local-storage
+              volumeMode: Block
               accessModes:
                 - ReadWriteOnce
   resources:

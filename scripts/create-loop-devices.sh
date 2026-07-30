@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Creates 3 sparse files + loop devices to simulate raw disks for Rook-Ceph OSDs,
-# then generates kind/cluster-config.yaml from the template.
+# Creates 3 sparse files + loop devices to back Ceph OSDs (via local PersistentVolumes —
+# see apps/rook-ceph-cluster/manifests/local-storage.yaml), then generates
+# kind/cluster-config.yaml from the template.
 #
 # Uses FIXED high loop device numbers (30/31/32) rather than letting the kernel
 # auto-pick one (`losetup -f`). Auto-pick sounds convenient but this project hit
@@ -13,7 +14,6 @@
 # Run this ONCE before `kind create cluster`. Needs sudo.
 #
 # Disk size: 10G sparse (doesn't actually consume 10G on disk until written).
-# Bump DISK_SIZE if you want more headroom for testing bigger Iceberg tables.
 
 set -euo pipefail
 
@@ -25,8 +25,6 @@ LOOP_NUMS=(30 31 32)
 sudo mkdir -p "$DISK_DIR"
 sudo chown "${SUDO_USER:-$(whoami)}" "$DISK_DIR"
 
-# Make sure udev has settled and any stale placeholder directories are gone
-# before we try to create/use these specific device nodes.
 sudo udevadm trigger --subsystem-match=block 2>/dev/null || true
 sudo udevadm settle 2>/dev/null || true
 
@@ -41,13 +39,11 @@ for i in 0 1 2; do
     truncate -s "$DISK_SIZE" "$IMG"
   fi
 
-  # If a directory got left behind here (e.g. from a stale kind bind-mount), clear it.
   if [ -d "$LOOP_DEV" ]; then
     echo "$LOOP_DEV is a stray directory, not a device — removing it"
     sudo rmdir "$LOOP_DEV"
   fi
 
-  # Create the device node if it doesn't exist yet.
   if [ ! -e "$LOOP_DEV" ]; then
     echo "Creating device node $LOOP_DEV"
     sudo mknod -m 660 "$LOOP_DEV" b 7 "$LOOP_NUM"
@@ -58,7 +54,6 @@ for i in 0 1 2; do
   if [ "$EXISTING_LOOP" = "$LOOP_DEV" ]; then
     echo "$IMG is already attached to $LOOP_DEV, reusing it"
   else
-    # Detach anything stale first (e.g. pointing at a now-deleted file).
     sudo losetup -d "$LOOP_DEV" 2>/dev/null || true
     echo "Attaching $IMG to $LOOP_DEV"
     sudo losetup "$LOOP_DEV" "$IMG"
@@ -77,5 +72,4 @@ sed -e "s|LOOP0_DEV|${LOOP_DEVICES[0]}|" \
 echo "Generated kind/cluster-config.yaml with real loop device paths."
 echo ""
 echo "IMPORTANT: these loop devices don't survive a host reboot. If you reboot,"
-echo "re-run this script BEFORE re-creating the kind cluster. To clean up entirely,"
-echo "run scripts/teardown-loop-devices.sh."
+echo "re-run this script BEFORE re-creating the kind cluster."

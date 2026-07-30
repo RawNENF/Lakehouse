@@ -19,20 +19,43 @@ this up:
 
 ### 1. kind — the cluster itself
 
-`kind/cluster-config.yaml` defines 1 control-plane + 2 workers. Each node gets an
-`extraMounts` entry pointing at a loop-device-backed sparse file on the host, so Rook has
-something that looks like a raw block device to claim as a Ceph OSD.
+`kind/cluster-config.yaml` (generated from a template by `scripts/create-loop-devices.sh`)
+defines 1 control-plane + 2 workers, each with a loop-device-backed sparse file mounted
+in via `extraMounts`.
+
+**Why loop devices, wrapped this specific way?** We went through three iterations here:
+
+1. **Raw loop devices, given directly to Rook's device auto-discovery** — Rook
+   categorically rejects loop-type devices during discovery ("unsupported diskType
+   loop"). Dead end, no matter how clean the devices were.
+2. **PVC-based OSDs via kind's built-in `standard` StorageClass** (local-path-provisioner)
+   — Rook's PVC-based OSD mode always expects `Block`-mode volumes, and
+   local-path-provisioner can only produce `Filesystem`-mode ones. Also a dead end.
+3. **What we landed on**: loop devices, wrapped as manually-defined local
+   `PersistentVolume`s in `Block` mode (see `apps/rook-ceph-cluster/manifests/local-storage.yaml`),
+   consumed via Rook's PVC-based OSD mode. This sidesteps Rook's device-type filtering
+   entirely (that check only applies to the raw auto-discovery path) and satisfies the
+   Block-mode requirement. This is the same pattern Rook's own upstream CI uses to test
+   OSDs on loop devices.
+
+One consequence: because the control-plane node is normally tainted to refuse
+workloads, and we only have 2 worker nodes, Ceph's 3-way mon quorum can't schedule
+without also allowing the control-plane to run pods. The setup guide has you remove
+that taint — fine for a single-host simulation, not something you'd do on a real
+production control-plane.
 
 ### 2. Rook-Ceph — distributed storage, running *inside* Kubernetes
 
-Ceph doesn't know or care that its "disks" are loop devices — from its perspective it's
-managing raw block storage across 3 nodes, same as it would on real hardware.
-
 - `apps/rook-ceph-operator/` — the Rook operator (a Helm chart, deployed via Argo CD).
   It watches Ceph-related Custom Resources and translates them into running Ceph daemons.
+- `apps/rook-ceph-cluster/manifests/local-storage.yaml` — the `local-storage`
+  StorageClass and 3 static `PersistentVolume`s (one per node, `Block` mode) that wrap
+  the loop devices. This is what makes the loop devices usable by Rook at all.
 - `apps/rook-ceph-cluster/` — the actual `CephCluster` and `CephObjectStore` custom
-  resources. The `CephObjectStore` spins up RGW (RADOS Gateway), which is Ceph's
-  **S3-compatible API**. This is the object storage endpoint Iceberg will write to.
+  resources. `CephCluster` uses `storageClassDeviceSets` — each OSD gets a PVC (backed
+  by `local-storage`, defined above) rather than a raw device or a Filesystem-mode PVC.
+  `CephObjectStore` spins up RGW (RADOS Gateway), Ceph's **S3-compatible API** — this is
+  the object storage endpoint Iceberg will write to.
 
 Why Ceph instead of just using MinIO for S3-compatible storage? Because the brief is
 specifically to prove out Ceph as the storage substrate — MinIO would be simpler but

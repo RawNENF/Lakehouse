@@ -31,8 +31,8 @@ lakehouse/
 Full instructions are in [`docs/setup-guide.md`](docs/setup-guide.md). Short version:
 
 ```bash
-./scripts/create-loop-devices.sh        # 1. simulate raw disks for Ceph
-kind create cluster --config kind/cluster-config.yaml   # 2. spin up the 3-node cluster
+kind create cluster --config kind/cluster-config.yaml   # 1. spin up the 3-node cluster
+kubectl taint nodes lakehouse-control-plane node-role.kubernetes.io/control-plane:NoSchedule-  # 2. allow workloads on control-plane (needed for 3-way mon quorum on a 3-node cluster)
 ./bootstrap/install-argocd.sh           # 3. install Argo CD
 kubectl apply -f bootstrap/root-app.yaml # 4. tell Argo CD to sync everything in apps/
 ```

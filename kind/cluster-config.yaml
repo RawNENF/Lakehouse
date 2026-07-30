@@ -1,10 +1,15 @@
 apiVersion: kind.x-k8s.io/v1alpha4
 kind: Cluster
 name: lakehouse
+
+# 1 control-plane + 2 workers = 3 nodes total. No extraMounts / loop devices needed —
+# Ceph OSDs run on PVCs (backed by kind's built-in local-path-provisioner StorageClass),
+# not raw devices. See docs/architecture.md for why we moved away from raw loop devices.
 nodes:
   - role: control-plane
   - role: worker
   - role: worker
+
 networking:
   apiServerAddress: "127.0.0.1"
   apiServerPort: 6443
