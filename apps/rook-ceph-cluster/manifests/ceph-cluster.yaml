@@ -51,3 +51,14 @@ spec:
         interval: 45s
       osd:
         interval: 60s
+    livenessProbe:
+      mon:
+        disabled: false
+        probe:
+          timeoutSeconds: 30
+    startupProbe:
+      mon:
+        disabled: false
+        probe:
+          timeoutSeconds: 30
+          failureThreshold: 10
