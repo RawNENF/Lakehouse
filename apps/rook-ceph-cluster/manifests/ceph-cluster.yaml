@@ -53,6 +53,11 @@ spec:
       mon:
         disabled: false
         probe:
+          timeoutSeconds: 30
+    readinessProbe:
+      mon:
+        disabled: false
+        probe:
           timeoutSeconds: 30    # default 5s was too tight on constrained hardware —
                                  # the mon daemon itself was healthy, just the probe's
                                  # own `ceph` CLI call was slow under CPU pressure
